@@ -1,0 +1,9 @@
+/.vs
+
+/.idea
+
+__pycache__
+
+README
+
+.DS_Store
