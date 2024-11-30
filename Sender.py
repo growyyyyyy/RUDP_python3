@@ -1,41 +1,116 @@
-import sys
+import socket
 import getopt
-
+import sys
+import time
 import Checksum
 import BasicSender
 
-'''
-This is a skeleton sender class. Create a fantastic transport protocol here.
-'''
+
 class Sender(BasicSender.BasicSender):
     def __init__(self, dest, port, filename, debug=False, sackMode=False):
         super(Sender, self).__init__(dest, port, filename, debug)
-        if sackMode:
-            raise NotImplementedError #remove this line when you implement SACK
+        self.sackMode = sackMode
+        self.window_size = 5  # 窗口大小
+        self.base = 0  # 窗口起始序号
+        self.next_seqno = 0  # 下一个待发送的包序号
+        self.packets = []  # 需要发送的所有数据包
+        self.acks = []  # 用于记录确认状态的列表
+        self.timer = None  # 超时计时器
+        self.timeout_interval = 0.5  # 超时时间
 
-    # Main sending loop.
     def start(self):
-        raise NotImplementedError
+        """
+        主发送逻辑
+        """
+        self.create_packets()
+
+        while self.base < len(self.packets):
+            self.send_window()
+            try:
+                response = self.receive(timeout=self.timeout_interval)
+                if response:
+                    self.handle_response(response.decode())
+            except socket.timeout:
+                self.handle_timeout()
+
+    def create_packets(self):
+        """
+        将文件读取并分割为 RUDP 数据包
+        """
+        seqno = 0
+        while True:
+            data = self.infile.read(500)
+            if not data:
+                break
+
+            msg_type = "data"
+            if seqno == 0:
+                msg_type = "start"
+            elif len(data) < 500:
+                msg_type = "end"
+
+            packet = self.make_packet(msg_type, seqno, data)
+            self.packets.append(packet)
+            seqno += 1
+
+        self.infile.close()
+        self.acks = [False] * len(self.packets)
+
+    def send_window(self):
+        """
+        在当前窗口内发送未确认的数据包
+        """
+        for seqno in range(self.base, min(self.base + self.window_size, len(self.packets))):
+            if not self.acks[seqno]:
+                self.send(self.packets[seqno])
+                self.log(f"Sent packet: {self.packets[seqno]}")
+
+    def handle_response(self, response_packet):
+        """
+        处理接收端返回的 ACK 或 SACK 响应
+        """
+        if not Checksum.validate_checksum(response_packet):
+            self.log(f"Invalid checksum for response: {response_packet}")
+            return
+
+        parts = response_packet.split('|')
+        ack_type = parts[0]
+        if ack_type == "ack":
+            ack_seqno = int(parts[1])
+            self.handle_ack(ack_seqno)
+        elif ack_type == "sack" and self.sackMode:
+            sack_info = parts[1].split(';')
+            cumulative_ack = int(sack_info[0])
+            selective_acks = [int(x) for x in sack_info[1].split(',') if x]
+            self.handle_ack(cumulative_ack)
+            for seqno in selective_acks:
+                self.acks[seqno] = True
+
+    def handle_ack(self, ack_seqno):
+        """
+        处理累积确认，更新窗口起始序号
+        """
+        if ack_seqno > self.base:
+            for i in range(self.base, ack_seqno):
+                self.acks[i] = True
+            self.base = ack_seqno
+        self.log(f"New base: {self.base}")
 
     def handle_timeout(self):
-        pass
-
-    def handle_new_ack(self, ack):
-        pass
-
-    def handle_dup_ack(self, ack):
-        pass
+        """
+        超时处理，重新发送窗口内的未确认数据包
+        """
+        self.log("Timeout occurred, resending window")
+        self.send_window()
 
     def log(self, msg):
+        """
+        打印调试信息
+        """
         if self.debug:
             print(msg)
 
 
-'''
-This will be run if you run this script from the command line. You should not
-change any of this; the grader may rely on the behavior here to test your
-submission.
-'''
 if __name__ == "__main__":
     def usage():
         print("RUDP Sender")
@@ -47,11 +122,13 @@ if __name__ == "__main__":
         print("-k | --sack Enable selective acknowledgement mode")
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:],
-                               "f:p:a:dk", ["file=", "port=", "address=", "debug=", "sack="])
-    except:
+        opts, args = getopt.getopt(
+            sys.argv[1:], "f:p:a:dk", [
+                "file=", "port=", "address=", "debug", "sack"]
+        )
+    except getopt.GetoptError:
         usage()
-        exit()
+        sys.exit(2)
 
     port = 33122
     dest = "localhost"
@@ -59,20 +136,20 @@ if __name__ == "__main__":
     debug = False
     sackMode = False
 
-    for o,a in opts:
-        if o in ("-f", "--file="):
+    for o, a in opts:
+        if o in ("-f", "--file"):
             filename = a
-        elif o in ("-p", "--port="):
+        elif o in ("-p", "--port"):
             port = int(a)
-        elif o in ("-a", "--address="):
+        elif o in ("-a", "--address"):
             dest = a
-        elif o in ("-d", "--debug="):
+        elif o in ("-d", "--debug"):
             debug = True
-        elif o in ("-k", "--sack="):
+        elif o in ("-k", "--sack"):
             sackMode = True
 
-    s = Sender(dest, port, filename, debug, sackMode)
+    sender = Sender(dest, port, filename, debug, sackMode)
     try:
-        s.start()
-    except (KeyboardInterrupt, SystemExit):
-        exit()
+        sender.start()
+    except KeyboardInterrupt:
+        sys.exit()
