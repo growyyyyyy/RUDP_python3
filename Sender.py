@@ -3,6 +3,7 @@ import getopt
 import sys
 import Checksum
 import BasicSender
+from tqdm import tqdm  # 导入 tqdm 进度条库
 
 
 class Sender(BasicSender.BasicSender):
@@ -22,14 +23,20 @@ class Sender(BasicSender.BasicSender):
         """
         self.create_packets()
 
-        while self.base < len(self.packets):
-            self.send_window()
-            try:
-                response = self.receive(timeout=self.timeout_interval)
-                if response:
-                    self.handle_response(response.decode())
-            except socket.timeout:
-                self.handle_timeout()
+        # 初始化进度条
+        with tqdm(total=len(self.packets), desc="Sending", unit="pkt") as pbar:
+            while self.base < len(self.packets):
+                self.send_window()
+                try:
+                    response = self.receive(timeout=self.timeout_interval)
+                    if response:
+                        self.handle_response(response.decode())
+                except socket.timeout:
+                    self.handle_timeout()
+
+                # 更新进度条
+                pbar.n = self.base  # 更新当前已确认的包数
+                pbar.refresh()
 
     def create_packets(self):
         """
