@@ -1,7 +1,6 @@
 import socket
 import getopt
 import sys
-import time
 import Checksum
 import BasicSender
 
@@ -15,7 +14,6 @@ class Sender(BasicSender.BasicSender):
         self.next_seqno = 0  # 下一个待发送的包序号
         self.packets = []  # 需要发送的所有数据包
         self.acks = []  # 用于记录确认状态的列表
-        self.timer = None  # 超时计时器
         self.timeout_interval = 0.5  # 超时时间
 
     def start(self):
@@ -38,22 +36,23 @@ class Sender(BasicSender.BasicSender):
         将文件读取并分割为 RUDP 数据包
         """
         seqno = 0
-        while True:
-            data = self.infile.read(500)
-            if not data:
-                break
+        with open(self.infile.name, "rb") as f:
+            while True:
+                data = f.read(500)  # 按 500 字节分割文件
+                if not data:
+                    break
 
-            msg_type = "data"
-            if seqno == 0:
-                msg_type = "start"
-            elif len(data) < 500:
-                msg_type = "end"
+                msg_type = "data"
+                if seqno == 0:
+                    msg_type = "start"
+                elif len(data) < 500:
+                    msg_type = "end"
 
-            packet = self.make_packet(msg_type, seqno, data)
-            self.packets.append(packet)
-            seqno += 1
+                packet = self.make_packet(
+                    msg_type, seqno, data.decode('latin1'))
+                self.packets.append(packet)
+                seqno += 1
 
-        self.infile.close()
         self.acks = [False] * len(self.packets)
 
     def send_window(self):
