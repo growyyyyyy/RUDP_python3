@@ -48,8 +48,8 @@ class Sender(BasicSender.BasicSender):
                 elif len(data) < 500:
                     msg_type = "end"
 
-                packet = self.make_packet(
-                    msg_type, seqno, data.decode('latin1'))
+                # 直接将二进制数据转为字符串
+                packet = self.make_packet(msg_type, seqno, data.hex())
                 self.packets.append(packet)
                 seqno += 1
 

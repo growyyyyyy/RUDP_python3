@@ -22,15 +22,15 @@ def tests_to_run(forwarder):
     from tests import DuplicatePacketTest, SackDuplicatePacketTest
 
     # Go-Back-N 测试用例
-    BasicTest.BasicTest(forwarder, "README.txt")
-    RandomDropTest.RandomDropTest(forwarder, "README.txt")
-    OutOfOrderTest.OutOfOrderTest(forwarder, "README.txt")  # 新增失序测试
-    DuplicatePacketTest.DuplicatePacketTest(forwarder, "README.txt")  # 新增重复测试
+    BasicTest.BasicTest(forwarder, "test_pic.jpeg")
+    RandomDropTest.RandomDropTest(forwarder, "test_pic.jpeg")
+    OutOfOrderTest.OutOfOrderTest(forwarder, "test_pic.jpeg")
+    DuplicatePacketTest.DuplicatePacketTest(forwarder, "test_pic.jpeg")
 
     # SACK 测试用例
-    SackRandomDropTest.SackRandomDropTest(forwarder, "README.txt")
-    SackOutOfOrderTest.SackOutOfOrderTest(forwarder, "README.txt")  # 新增失序测试（SACK 模式）
-    SackDuplicatePacketTest.SackDuplicatePacketTest(forwarder, "README.txt")  # 新增重复测试（SACK 模式）
+    SackRandomDropTest.SackRandomDropTest(forwarder, "test_pic.jpeg")
+    SackOutOfOrderTest.SackOutOfOrderTest(forwarder, "test_pic.jpeg")
+    SackDuplicatePacketTest.SackDuplicatePacketTest(forwarder, "test_pic.jpeg")
 
 
 """
